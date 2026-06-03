@@ -71,6 +71,10 @@ function doPost(e) {
       return handleAdminLogin(body);
     }
 
+    if (action === "admin_login_google") {
+      return handleAdminLoginGoogle(body);
+    }
+
     if (action === "admin_logout") {
       return handleAdminLogout(body);
     }
@@ -633,6 +637,60 @@ function handleChangeAdminPassword(body) {
     return jsonResponse({ response: 'Password berhasil diubah. Silakan login ulang.', source: 'auth' });
   } catch (err) {
     return jsonResponse({ response: 'Gagal mengubah password.', source: 'error' });
+  }
+}
+
+function getAdminGoogleClientId() {
+  return PropertiesService.getScriptProperties().getProperty('ADMIN_GOOGLE_CLIENT_ID') || '';
+}
+
+function getAdminAllowedEmails() {
+  var raw = PropertiesService.getScriptProperties().getProperty('ADMIN_ALLOWED_EMAILS') || '';
+  if (!raw) return null; // null means allow any
+  return raw.split(',').map(function(s){ return String(s).trim().toLowerCase(); }).filter(function(s){ return s.length > 0; });
+}
+
+function setAdminAllowedEmails(emailsList) {
+  if (!emailsList) {
+    PropertiesService.getScriptProperties().deleteProperty('ADMIN_ALLOWED_EMAILS');
+    return 'ADMIN_ALLOWED_EMAILS dihapus (semua akun Google diterima).';
+  }
+  PropertiesService.getScriptProperties().setProperty('ADMIN_ALLOWED_EMAILS', String(emailsList).trim());
+  return 'ADMIN_ALLOWED_EMAILS diatur: ' + String(emailsList).trim();
+}
+
+function handleAdminLoginGoogle(body) {
+  var idToken = String(body.id_token || '').trim();
+  if (!idToken) return jsonResponse({ response: 'ID token tidak ditemukan.', source: 'auth' });
+
+  try {
+    var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) {
+      return jsonResponse({ response: 'ID token tidak valid.', source: 'auth' });
+    }
+    var info = JSON.parse(res.getContentText());
+    var email = String(info.email || '').toLowerCase();
+    var aud = String(info.aud || '');
+
+    var clientId = getAdminGoogleClientId();
+    if (clientId && aud !== clientId) {
+      return jsonResponse({ response: 'Token aud tidak cocok. Periksa ADMIN_GOOGLE_CLIENT_ID.', source: 'auth' });
+    }
+
+    var allowed = getAdminAllowedEmails();
+    if (Array.isArray(allowed)) {
+      if (allowed.indexOf(email) === -1) {
+        return jsonResponse({ response: 'Akun Google tidak diizinkan.', source: 'auth' });
+      }
+    }
+
+    // success: generate admin token
+    var token = generateAdminToken();
+    return jsonResponse({ response: 'OK', source: 'auth', token: token, email: email, expires: PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN_EXP') });
+  } catch (err) {
+    Logger.log('handleAdminLoginGoogle error: ' + err.toString());
+    return jsonResponse({ response: 'Gagal memverifikasi Google ID token.', source: 'auth' });
   }
 }
 

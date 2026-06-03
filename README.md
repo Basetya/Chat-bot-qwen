@@ -111,3 +111,39 @@ git push origin main
 - Halaman admin (manage KB & file): `/admin` (admin.html)
 
 Catatan: admin tidak dilindungi secara default — jangan publikasikan akses admin tanpa menambahkan otentikasi.
+
+## Setup Google Sign-In untuk Admin
+
+### Langkah 1: Buat OAuth 2.0 Client ID di Google Cloud
+1. Buka https://console.cloud.google.com/
+2. Pilih atau buat project baru.
+3. Buka "APIs & Services" > "Credentials".
+4. Klik "Create Credentials" > "OAuth client ID" > pilih "Web application".
+5. Isi "Authorized JavaScript origins": tambahkan URL Vercel Anda (mis. https://your-app.vercel.app).
+6. Isi "Authorized redirect URIs" (optional untuk SPA): https://your-app.vercel.app/admin.
+7. Salin `Client ID`.
+
+### Langkah 2: Update admin.html dengan Google Client ID
+1. Buka file `admin.html` di editor.
+2. Cari baris: `const GOOGLE_CLIENT_ID = 'REPLACE_WITH_GOOGLE_CLIENT_ID';`
+3. Ganti dengan: `const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';`
+4. Commit dan push ke GitHub, Vercel akan deploy otomatis.
+
+### Langkah 3: Set Allowed Admin Emails
+1. Di Google Apps Script editor (di project GAS Anda), buka Console.
+2. Jalankan fungsi berikut di console:
+   ```javascript
+   setAdminAllowedEmails('bambang.setyanto@gmail.com, setyantobiz@gmail.com, humblebasty@gmail.com')
+   ```
+3. Atau set manual di Script Properties: Project Settings > Script Properties.
+   - Key: `ADMIN_ALLOWED_EMAILS`
+   - Value: `bambang.setyanto@gmail.com, setyantobiz@gmail.com, humblebasty@gmail.com`
+
+Jika tidak diset, semua akun Google akan diterima (pastikan `ADMIN_GOOGLE_CLIENT_ID` cocok dengan aud token).
+
+### Penggunaan Google Sign-In
+- Buka `/admin` di deployment Anda.
+- Klik tombol "Sign in with Google".
+- Pilih akun Google yang email-nya ada di ADMIN_ALLOWED_EMAILS.
+- Jika berhasil, token admin disimpan di localStorage (berlaku 8 jam).
+- Fallback: masih bisa login dengan username `admin` dan password default `135711` (atau password yang sudah diubah).
