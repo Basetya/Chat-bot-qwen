@@ -22,6 +22,7 @@
     .file-item { padding:8px 10px; border-bottom:1px solid #f1f1f1 }
     .file-item button { background:#dc3545 }
   </style>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div id="loginPanel" class="panel">
@@ -39,6 +40,11 @@
       <button id="doLogin">Masuk</button>
     </div>
     <div id="loginStatus" class="status"></div>
+  </div>
+
+  <div style="max-width:900px;margin:0 auto;text-align:center;margin-top:12px">
+    <div id="googleBtnContainer"></div>
+    <div id="googleNotice" class="status">Masukkan ADMIN_GOOGLE_CLIENT_ID di file admin.html untuk mengaktifkan Google Sign-In.</div>
   </div>
 
   <div id="adminPanel" class="panel" style="display:none">
@@ -223,6 +229,40 @@
     }
 
     function checkAuthState(){ if(getAdminToken()){ showAdminPanel(); loadKnowledgeBase(); loadUploadedFiles(); } else { showLoginPanel(); } }
+
+    const GOOGLE_CLIENT_ID = 'REPLACE_WITH_GOOGLE_CLIENT_ID';
+
+    function initGoogleSignIn(){
+      try{
+        if(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'REPLACE_WITH_GOOGLE_CLIENT_ID' && window.google && google.accounts && google.accounts.id){
+          document.getElementById('googleNotice').style.display = 'none';
+          google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+          google.accounts.id.renderButton(document.getElementById('googleBtnContainer'), { theme: 'outline', size: 'large' });
+        } else {
+          document.getElementById('googleNotice').style.display = 'block';
+        }
+      }catch(e){ console.error('initGoogleSignIn', e); document.getElementById('googleNotice').style.display = 'block'; }
+    }
+
+    async function handleCredentialResponse(resp){
+      const idToken = resp.credential;
+      document.getElementById('loginStatus').textContent = 'Verifying Google sign-in...';
+      try{
+        const r = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'admin_login_google', id_token: idToken }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await r.json();
+        if(data.source === 'auth' && data.token){
+          localStorage.setItem('admin_token', data.token);
+          document.getElementById('loginStatus').textContent = 'Login sukses.';
+          showAdminPanel();
+          loadKnowledgeBase(); loadUploadedFiles();
+        } else {
+          document.getElementById('loginStatus').textContent = data.response || 'Google sign-in gagal.';
+        }
+      }catch(e){ document.getElementById('loginStatus').textContent = 'Google sign-in error'; console.error(e) }
+    }
+
+    // initialize google sign-in after load
+    window.addEventListener('load', function(){ initGoogleSignIn(); });
   </script>
 </body>
 </html>
