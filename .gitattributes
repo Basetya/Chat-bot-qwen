@@ -1,0 +1,8 @@
+# Normalize line endings for text files
+* text=auto
+
+# Ensure shell scripts use LF so they run correctly on Unix-like systems
+*.sh text eol=lf
+
+# Use CRLF for Windows batch files
+*.bat text eol=crlf
