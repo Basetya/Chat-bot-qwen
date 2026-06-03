@@ -24,7 +24,24 @@
   </style>
 </head>
 <body>
-  <div class="panel">
+  <div id="loginPanel" class="panel">
+    <h2>Admin Login</h2>
+    <p>Masuk menggunakan akun admin.</p>
+    <div>
+      <label>Username</label><br/>
+      <input id="loginUser" value="admin" />
+    </div>
+    <div style="margin-top:8px">
+      <label>Password</label><br/>
+      <input id="loginPass" type="password" />
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="doLogin">Masuk</button>
+    </div>
+    <div id="loginStatus" class="status"></div>
+  </div>
+
+  <div id="adminPanel" class="panel" style="display:none">
     <h2>Admin - Chat Bot Pribadi</h2>
     <p>Atur knowledge base dan file upload untuk chatbot.</p>
 
@@ -46,6 +63,18 @@
 
     <h3 style="margin-top:18px">Daftar File Terunggah</h3>
     <div id="fileList" class="file-list"></div>
+    <div style="margin-top:12px">
+      <h4>Akun</h4>
+      <div class="row">
+        <button id="doLogout">Logout</button>
+      </div>
+      <h4 style="margin-top:8px">Ubah Password Admin</h4>
+      <input id="newPass" type="password" placeholder="Password baru" />
+      <div class="row" style="margin-top:8px">
+        <button id="changePass">Ubah Password</button>
+      </div>
+      <div id="passStatus" class="status"></div>
+    </div>
   </div>
 
   <script>
@@ -66,14 +95,18 @@
     uploadFile.addEventListener('click', uploadFileHandler);
     refreshFiles.addEventListener('click', loadUploadedFiles);
 
-    loadKnowledgeBase();
-    loadUploadedFiles();
+    document.getElementById('doLogin').addEventListener('click', doLogin);
+    document.getElementById('doLogout').addEventListener('click', doLogout);
+    document.getElementById('changePass').addEventListener('click', changePassword);
+
+    checkAuthState();
 
     async function loadKnowledgeBase(){
       kbStatus.textContent = 'Memuat...';
       try{
-        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'get_knowledge' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'get_knowledge', admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
         const data = await res.json();
+        if(data.source === 'auth'){ kbStatus.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
         kbText.value = data.response || '';
         kbStatus.textContent = 'KB dimuat.';
       }catch(e){ kbStatus.textContent = 'Gagal memuat KB.'; console.error(e) }
@@ -84,8 +117,9 @@
       if(!text){ kbStatus.textContent = 'KB kosong.'; return }
       saveKb.disabled = true; kbStatus.textContent = 'Menyimpan...';
       try{
-        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'set_knowledge', kb_text: text }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'set_knowledge', kb_text: text, admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
         const data = await res.json(); kbStatus.textContent = data.response || 'Tersimpan.';
+        if(data.source === 'auth'){ kbStatus.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
       }catch(e){ kbStatus.textContent = 'Gagal menyimpan.'; console.error(e) }
       finally{ saveKb.disabled = false }
     }
@@ -94,8 +128,9 @@
       if(!confirm('Reset KB ke default?')) return;
       resetKb.disabled = true; kbStatus.textContent = 'Mereset...';
       try{
-        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'reset_knowledge' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'reset_knowledge', admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
         const data = await res.json(); kbStatus.textContent = data.response || 'Direset.'; loadKnowledgeBase();
+        if(data.source === 'auth'){ kbStatus.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
       }catch(e){ kbStatus.textContent = 'Gagal reset.'; console.error(e) }
       finally{ resetKb.disabled = false }
     }
@@ -108,8 +143,9 @@
       reader.onload = async function(e){
         const base64 = e.target.result.split(',')[1];
         try{
-          const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'upload_file', filename: file.name, content_type: file.type || 'application/octet-stream', file_data: base64 }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+          const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'upload_file', filename: file.name, content_type: file.type || 'application/octet-stream', file_data: base64, admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
           const data = await res.json(); fileStatus.textContent = data.response || 'Diunggah.'; loadUploadedFiles();
+          if(data.source === 'auth'){ fileStatus.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
         }catch(err){ fileStatus.textContent = 'Gagal upload.'; console.error(err) }
         finally{ uploadFile.disabled = false }
       };
@@ -119,8 +155,9 @@
     async function loadUploadedFiles(){
       fileList.textContent = 'Memuat...';
       try{
-        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'list_files' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'list_files', admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
         const data = await res.json();
+        if(data.source === 'auth'){ fileList.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
         if(Array.isArray(data.response) && data.response.length){
           fileList.innerHTML = data.response.map(f => `<div class=\"file-item\"><strong>${f.name}</strong> (${Math.round(f.size/1024)} KB) - ${f.date} <button data-id=\"${f.id}\">Hapus</button></div>`).join('');
           fileList.querySelectorAll('button[data-id]').forEach(b=>b.addEventListener('click', (ev)=>deleteFile(ev.target.getAttribute('data-id'))));
@@ -133,10 +170,59 @@
     async function deleteFile(id){
       if(!confirm('Hapus file?')) return;
       try{
-        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'delete_file', file_id: id }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'delete_file', file_id: id, admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
         const data = await res.json(); fileStatus.textContent = data.response || 'Dihapus.'; loadUploadedFiles();
+        if(data.source === 'auth'){ fileStatus.textContent = 'Unauthorized - Silakan login.'; showLoginPanel(); return }
       }catch(e){ fileStatus.textContent = 'Gagal hapus.'; console.error(e) }
     }
+
+    // ----- Auth helpers -----
+    function getAdminToken(){ return localStorage.getItem('admin_token') }
+
+    function showLoginPanel(){ document.getElementById('loginPanel').style.display = 'block'; document.getElementById('adminPanel').style.display = 'none'; }
+    function showAdminPanel(){ document.getElementById('loginPanel').style.display = 'none'; document.getElementById('adminPanel').style.display = 'block'; }
+
+    async function doLogin(){
+      const user = document.getElementById('loginUser').value || 'admin';
+      const pass = document.getElementById('loginPass').value || '';
+      document.getElementById('loginStatus').textContent = 'Logging in...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'admin_login', username: user, password: pass }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json();
+        if(data.source === 'auth' && data.token){
+          localStorage.setItem('admin_token', data.token);
+          document.getElementById('loginStatus').textContent = 'Login sukses.';
+          showAdminPanel();
+          loadKnowledgeBase(); loadUploadedFiles();
+        }else{
+          document.getElementById('loginStatus').textContent = data.response || 'Login gagal.';
+        }
+      }catch(e){ document.getElementById('loginStatus').textContent = 'Gagal login.'; console.error(e) }
+    }
+
+    async function doLogout(){
+      try{
+        await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'admin_logout', admin_token: getAdminToken() }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+      }catch(e){ }
+      localStorage.removeItem('admin_token');
+      showLoginPanel();
+    }
+
+    async function changePassword(){
+      const np = document.getElementById('newPass').value || '';
+      if(!np){ document.getElementById('passStatus').textContent = 'Masukkan password baru.'; return }
+      document.getElementById('passStatus').textContent = 'Mengubah...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'change_admin_password', admin_token: getAdminToken(), new_password: np }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json();
+        document.getElementById('passStatus').textContent = data.response || 'Selesai.';
+        // password change forces logout
+        localStorage.removeItem('admin_token');
+        showLoginPanel();
+      }catch(e){ document.getElementById('passStatus').textContent = 'Gagal ubah password.'; console.error(e) }
+    }
+
+    function checkAuthState(){ if(getAdminToken()){ showAdminPanel(); loadKnowledgeBase(); loadUploadedFiles(); } else { showLoginPanel(); } }
   </script>
 </body>
 </html>

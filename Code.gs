@@ -66,27 +66,46 @@ function doPost(e) {
     var body = parseRequestBody(e);
     var action = String(body.action || "chat").trim();
 
+    // Public admin actions: login/logout/change password
+    if (action === "admin_login") {
+      return handleAdminLogin(body);
+    }
+
+    if (action === "admin_logout") {
+      return handleAdminLogout(body);
+    }
+
+    if (action === "change_admin_password") {
+      return handleChangeAdminPassword(body);
+    }
+
     if (action === "set_knowledge") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleSetKnowledge(body);
     }
 
     if (action === "get_knowledge") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleGetKnowledge();
     }
 
     if (action === "reset_knowledge") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleResetKnowledge();
     }
 
     if (action === "upload_file") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleUploadFile(body);
     }
 
     if (action === "list_files") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleListFiles();
     }
 
     if (action === "delete_file") {
+      if (!validateAdminRequest(body)) return unauthorizedResponse();
       return handleDeleteFile(body);
     }
 
@@ -511,5 +530,109 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// --------- Admin authentication helpers ---------
+function hashPassword(password) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(password || ''), Utilities.Charset.UTF_8);
+  return bytes.map(function(b){ var v = (b < 0) ? b + 256 : b; return (v < 16 ? '0' : '') + v.toString(16); }).join('');
+}
+
+function getStoredAdminHash() {
+  var props = PropertiesService.getScriptProperties();
+  var h = props.getProperty('ADMIN_PASS_HASH');
+  if (!h) {
+    // set default password 135711
+    var defaultHash = hashPassword('135711');
+    props.setProperty('ADMIN_PASS_HASH', defaultHash);
+    return defaultHash;
+  }
+  return h;
+}
+
+function verifyAdminCredentials(username, password) {
+  if (!username || String(username).trim().toLowerCase() !== 'admin') return false;
+  var stored = getStoredAdminHash();
+  var test = hashPassword(password || '');
+  return stored === test;
+}
+
+function generateAdminToken() {
+  var token = Utilities.getUuid();
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('ADMIN_TOKEN', token);
+  // expire in 8 hours
+  var exp = Date.now() + (8 * 60 * 60 * 1000);
+  props.setProperty('ADMIN_TOKEN_EXP', String(exp));
+  return token;
+}
+
+function validateAdminToken(token) {
+  if (!token) return false;
+  var props = PropertiesService.getScriptProperties();
+  var stored = props.getProperty('ADMIN_TOKEN');
+  var exp = Number(props.getProperty('ADMIN_TOKEN_EXP') || 0);
+  if (!stored || stored !== token) return false;
+  if (Date.now() > exp) {
+    // expired, clear
+    props.deleteProperty('ADMIN_TOKEN');
+    props.deleteProperty('ADMIN_TOKEN_EXP');
+    return false;
+  }
+  return true;
+}
+
+function clearAdminToken() {
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty('ADMIN_TOKEN');
+  props.deleteProperty('ADMIN_TOKEN_EXP');
+}
+
+function setAdminPassword(newPassword) {
+  if (!newPassword) throw new Error('Password baru kosong');
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('ADMIN_PASS_HASH', hashPassword(newPassword));
+}
+
+function validateAdminRequest(body) {
+  var token = String(body.admin_token || '').trim();
+  return validateAdminToken(token);
+}
+
+function unauthorizedResponse() {
+  return jsonResponse({ response: 'Unauthorized. Login required.', source: 'auth' });
+}
+
+function handleAdminLogin(body) {
+  var username = String(body.username || '').trim();
+  var password = String(body.password || '').trim();
+  if (verifyAdminCredentials(username, password)) {
+    var token = generateAdminToken();
+    return jsonResponse({ response: 'OK', source: 'auth', token: token, expires: PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN_EXP') });
+  }
+  return jsonResponse({ response: 'Invalid username or password.', source: 'auth' });
+}
+
+function handleAdminLogout(body) {
+  var token = String(body.admin_token || '').trim();
+  if (validateAdminToken(token)) {
+    clearAdminToken();
+    return jsonResponse({ response: 'Logged out', source: 'auth' });
+  }
+  return unauthorizedResponse();
+}
+
+function handleChangeAdminPassword(body) {
+  var token = String(body.admin_token || '').trim();
+  var newPass = String(body.new_password || '').trim();
+  if (!validateAdminToken(token)) return unauthorizedResponse();
+  try {
+    setAdminPassword(newPass);
+    // rotate token after password change
+    clearAdminToken();
+    return jsonResponse({ response: 'Password berhasil diubah. Silakan login ulang.', source: 'auth' });
+  } catch (err) {
+    return jsonResponse({ response: 'Gagal mengubah password.', source: 'error' });
+  }
 }
 
