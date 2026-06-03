@@ -1,0 +1,14 @@
+# Ignore files and folders not needed for the static deployment
+.git
+Chatbot Master/
+*.md
+*.bat
+*.sh
+appsscript.json
+.clasp.json
+Code.gs
+README_*
+PANDUAN_*
+Panduan_*
+SOLUSI_*
+Troubleshooting.md
