@@ -252,9 +252,78 @@ function parseUploadedFile(file, filename) {
     if (ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json') {
       return file.getBlob().getDataAsString();
     }
+    if (ext === 'pdf') {
+      return parsePdfFile(file, filename);
+    }
+    if (ext === 'xlsx' || ext === 'xls') {
+      return parseSpreadsheetFile(file, filename);
+    }
+    if (ext === 'docx') {
+      return parseDocxFile(file, filename);
+    }
     return null;
   } catch (err) {
     Logger.log('parseUploadedFile error: ' + err.toString());
+    return null;
+  }
+}
+
+function parsePdfFile(file, filename) {
+  try {
+    var resource = {
+      title: filename,
+      mimeType: MimeType.GOOGLE_DOCS
+    };
+    var converted = Drive.Files.insert(resource, file.getBlob(), {convert: true});
+    var doc = DocumentApp.openById(converted.id);
+    var text = doc.getBody().getText();
+    DriveApp.getFileById(converted.id).setTrashed(true);
+    return text;
+  } catch (err) {
+    Logger.log('parsePdfFile error: ' + err.toString());
+    return null;
+  }
+}
+
+function parseSpreadsheetFile(file, filename) {
+  try {
+    var resource = {
+      title: filename,
+      mimeType: MimeType.GOOGLE_SHEETS
+    };
+    var converted = Drive.Files.insert(resource, file.getBlob(), {convert: true});
+    var ss = SpreadsheetApp.openById(converted.id);
+    var text = [];
+    ss.getSheets().forEach(function(sheet) {
+      text.push('[Sheet: ' + sheet.getName() + ']');
+      var values = sheet.getDataRange().getValues();
+      values.forEach(function(row) {
+        text.push(row.map(function(cell) {
+          return cell === null ? '' : String(cell);
+        }).join(' | '));
+      });
+    });
+    DriveApp.getFileById(converted.id).setTrashed(true);
+    return text.join('\n');
+  } catch (err) {
+    Logger.log('parseSpreadsheetFile error: ' + err.toString());
+    return null;
+  }
+}
+
+function parseDocxFile(file, filename) {
+  try {
+    var resource = {
+      title: filename,
+      mimeType: MimeType.GOOGLE_DOCS
+    };
+    var converted = Drive.Files.insert(resource, file.getBlob(), {convert: true});
+    var doc = DocumentApp.openById(converted.id);
+    var text = doc.getBody().getText();
+    DriveApp.getFileById(converted.id).setTrashed(true);
+    return text;
+  } catch (err) {
+    Logger.log('parseDocxFile error: ' + err.toString());
     return null;
   }
 }
