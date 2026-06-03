@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Chat Bot Pribadi</title>
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --muted: #6c757d;
+    }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 20px; background: var(--bg); }
+    .panel { max-width:900px; margin:0 auto; background:var(--surface); padding:18px; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,0.08); }
+    textarea { width:100%; min-height:180px; padding:10px; border:1px solid #ddd; border-radius:6px; font:inherit; }
+    .row { display:flex; gap:12px; margin-top:12px; }
+    button { background:var(--primary); color:#fff; border:0; padding:10px 14px; border-radius:6px; cursor:pointer }
+    input[type=file] { margin-top:8px; width:100%; }
+    .status { margin-top:10px; color:var(--muted); white-space:pre-wrap }
+    .file-list { margin-top:12px }
+    .file-item { padding:8px 10px; border-bottom:1px solid #f1f1f1 }
+    .file-item button { background:#dc3545 }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2>Admin - Chat Bot Pribadi</h2>
+    <p>Atur knowledge base dan file upload untuk chatbot.</p>
+
+    <h3>Knowledge Base</h3>
+    <textarea id="kbText"></textarea>
+    <div class="row">
+      <button id="saveKb">Simpan KB</button>
+      <button id="resetKb">Reset ke Default</button>
+      <button id="refreshFiles">Muat Daftar File</button>
+    </div>
+    <div id="kbStatus" class="status"></div>
+
+    <h3 style="margin-top:18px">Upload File (txt, md, csv, json, pdf, xls, xlsx, docx, png, jpg)</h3>
+    <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.pdf,.xls,.xlsx,.docx,.png,.jpg,.jpeg" />
+    <div class="row">
+      <button id="uploadFile">Upload & Tambahkan</button>
+      <div id="fileStatus" class="status"></div>
+    </div>
+
+    <h3 style="margin-top:18px">Daftar File Terunggah</h3>
+    <div id="fileList" class="file-list"></div>
+  </div>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyHf_AKnXO8bO1YV4oy7giZYPc-XQmKh_OPhSdKLhBtqZ7t64SzWcuxYOm2b2YQgg6h/exec";
+
+    const kbText = document.getElementById('kbText');
+    const saveKb = document.getElementById('saveKb');
+    const resetKb = document.getElementById('resetKb');
+    const kbStatus = document.getElementById('kbStatus');
+    const fileInput = document.getElementById('fileInput');
+    const uploadFile = document.getElementById('uploadFile');
+    const fileStatus = document.getElementById('fileStatus');
+    const fileList = document.getElementById('fileList');
+    const refreshFiles = document.getElementById('refreshFiles');
+
+    saveKb.addEventListener('click', saveKnowledgeBase);
+    resetKb.addEventListener('click', resetKnowledgeBase);
+    uploadFile.addEventListener('click', uploadFileHandler);
+    refreshFiles.addEventListener('click', loadUploadedFiles);
+
+    loadKnowledgeBase();
+    loadUploadedFiles();
+
+    async function loadKnowledgeBase(){
+      kbStatus.textContent = 'Memuat...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'get_knowledge' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json();
+        kbText.value = data.response || '';
+        kbStatus.textContent = 'KB dimuat.';
+      }catch(e){ kbStatus.textContent = 'Gagal memuat KB.'; console.error(e) }
+    }
+
+    async function saveKnowledgeBase(){
+      const text = kbText.value.trim();
+      if(!text){ kbStatus.textContent = 'KB kosong.'; return }
+      saveKb.disabled = true; kbStatus.textContent = 'Menyimpan...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'set_knowledge', kb_text: text }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json(); kbStatus.textContent = data.response || 'Tersimpan.';
+      }catch(e){ kbStatus.textContent = 'Gagal menyimpan.'; console.error(e) }
+      finally{ saveKb.disabled = false }
+    }
+
+    async function resetKnowledgeBase(){
+      if(!confirm('Reset KB ke default?')) return;
+      resetKb.disabled = true; kbStatus.textContent = 'Mereset...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'reset_knowledge' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json(); kbStatus.textContent = data.response || 'Direset.'; loadKnowledgeBase();
+      }catch(e){ kbStatus.textContent = 'Gagal reset.'; console.error(e) }
+      finally{ resetKb.disabled = false }
+    }
+
+    async function uploadFileHandler(){
+      const file = fileInput.files[0];
+      if(!file){ fileStatus.textContent = 'Pilih file.'; return }
+      uploadFile.disabled = true; fileStatus.textContent = 'Mengunggah...';
+      const reader = new FileReader();
+      reader.onload = async function(e){
+        const base64 = e.target.result.split(',')[1];
+        try{
+          const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'upload_file', filename: file.name, content_type: file.type || 'application/octet-stream', file_data: base64 }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+          const data = await res.json(); fileStatus.textContent = data.response || 'Diunggah.'; loadUploadedFiles();
+        }catch(err){ fileStatus.textContent = 'Gagal upload.'; console.error(err) }
+        finally{ uploadFile.disabled = false }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadUploadedFiles(){
+      fileList.textContent = 'Memuat...';
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'list_files' }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json();
+        if(Array.isArray(data.response) && data.response.length){
+          fileList.innerHTML = data.response.map(f => `<div class=\"file-item\"><strong>${f.name}</strong> (${Math.round(f.size/1024)} KB) - ${f.date} <button data-id=\"${f.id}\">Hapus</button></div>`).join('');
+          fileList.querySelectorAll('button[data-id]').forEach(b=>b.addEventListener('click', (ev)=>deleteFile(ev.target.getAttribute('data-id'))));
+        }else{
+          fileList.textContent = 'Belum ada file.';
+        }
+      }catch(e){ fileList.textContent = 'Gagal memuat file.'; console.error(e) }
+    }
+
+    async function deleteFile(id){
+      if(!confirm('Hapus file?')) return;
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'delete_file', file_id: id }), headers:{'Content-Type':'application/json;charset=utf-8'} });
+        const data = await res.json(); fileStatus.textContent = data.response || 'Dihapus.'; loadUploadedFiles();
+      }catch(e){ fileStatus.textContent = 'Gagal hapus.'; console.error(e) }
+    }
+  </script>
+</body>
+</html>

@@ -105,3 +105,9 @@ git push origin main
    - Pilih `Production` dan/atau `Preview`
 
 5. Setelah deploy selesai, Vercel akan memberikan URL publik untuk aplikasi Anda.
+
+## URL Admin
+- Halaman user chat: `/` (index.html)
+- Halaman admin (manage KB & file): `/admin` (admin.html)
+
+Catatan: admin tidak dilindungi secara default — jangan publikasikan akses admin tanpa menambahkan otentikasi.
