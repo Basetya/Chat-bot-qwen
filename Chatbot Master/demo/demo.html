@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Chatbot Master</title>
+  <link rel="stylesheet" href="../web-widget/chatbot-widget.css">
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f7fa;
+      color: #212529;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 48px 20px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1.05;
+    }
+
+    p {
+      max-width: 680px;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #e9ecef;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Demo Chatbot Master</h1>
+    <p>
+      Halaman ini adalah contoh integrasi widget. Ganti nilai <code>endpoint</code>
+      di bawah dengan URL Web App Google Apps Script Anda.
+    </p>
+  </main>
+
+  <script src="../web-widget/chatbot-widget.js"></script>
+  <script>
+    ChatbotWidget.init({
+      endpoint: "https://script.google.com/macros/s/DEPLOYMENT_ID/exec",
+      title: "Chat Assistant",
+      subtitle: "Online",
+      brandName: "Demo Bisnis",
+      primaryColor: "#0d6efd",
+      launcherText: "Chat",
+      greeting: "Halo, saya siap membantu. Ada yang ingin ditanyakan?"
+    });
+  </script>
+</body>
+</html>
+
