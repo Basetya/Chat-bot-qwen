@@ -88,11 +88,28 @@
       margin-top: 8px;
     }
 
+    .kb-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .kb-actions button {
+      background: #198754;
+    }
+
+    .kb-actions button:nth-child(2) {
+      background: #0d6efd;
+    }
+
     .kb-editor .status,
-    .file-uploader .status {
+    .file-uploader .status,
+    #fileList {
       margin-top: 10px;
       color: var(--muted);
       font-size: 0.95rem;
+      white-space: pre-wrap;
     }
 
     #chatbox {
@@ -197,11 +214,16 @@
       <button id="saveKb">Simpan Knowledge Base</button>
       <div id="kbStatus" class="status"></div>
       <div class="file-uploader">
-        <label for="fileInput"><strong>Upload file</strong> (txt / md / csv / json / pdf / xls / xlsx / docx didukung):</label>
-        <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.pdf,.xls,.xlsx,.docx" />
+        <label for="fileInput"><strong>Upload file</strong> (txt / md / csv / json / pdf / xls / xlsx / docx / png / jpg / jpeg didukung):</label>
+        <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.pdf,.xls,.xlsx,.docx,.png,.jpg,.jpeg" />
         <button id="uploadFile">Upload & Tambahkan</button>
         <div id="fileStatus" class="status"></div>
       </div>
+      <div class="kb-actions">
+        <button id="resetKb" type="button">Reset Knowledge Base</button>
+        <button id="refreshFiles" type="button">Refresh Daftar File</button>
+      </div>
+      <div id="fileList"></div>
     </div>
     <div id="chatbox"></div>
     <div class="input-area">
@@ -252,7 +274,7 @@
         const res = await fetch(GAS_URL, {
           method: "POST",
           body: JSON.stringify({ message: text }),
-          headers: { "Content-Type": "text/plain;charset=utf-8" }
+          headers: { "Content-Type": "application/json;charset=utf-8" }
         });
 
         const data = await res.json();
@@ -274,10 +296,104 @@
     });
 
     var saveKbBtn = document.getElementById("saveKb");
+    var resetKbBtn = document.getElementById("resetKb");
+    var refreshFilesBtn = document.getElementById("refreshFiles");
     var kbText = document.getElementById("kbText");
     var kbStatus = document.getElementById("kbStatus");
+    var fileList = document.getElementById("fileList");
 
     saveKbBtn.addEventListener("click", saveKnowledgeBase);
+    resetKbBtn.addEventListener("click", resetKnowledgeBase);
+    refreshFilesBtn.addEventListener("click", loadUploadedFiles);
+
+    loadKnowledgeBase();
+    loadUploadedFiles();
+
+    async function loadKnowledgeBase() {
+      kbStatus.textContent = "Memuat knowledge base...";
+      try {
+        var res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "get_knowledge" }),
+          headers: { "Content-Type": "application/json;charset=utf-8" }
+        });
+        var data = await res.json();
+        kbText.value = data.response || "";
+        kbStatus.textContent = "Knowledge base dimuat.";
+      } catch (err) {
+        kbStatus.textContent = "Gagal memuat knowledge base.";
+        console.error(err);
+      }
+    }
+
+    async function resetKnowledgeBase() {
+      if (!confirm("Reset knowledge base ke default? Semua konten custom akan hilang.")) {
+        return;
+      }
+      resetKbBtn.disabled = true;
+      kbStatus.textContent = "Mereset knowledge base...";
+      try {
+        var res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "reset_knowledge" }),
+          headers: { "Content-Type": "application/json;charset=utf-8" }
+        });
+        var data = await res.json();
+        kbStatus.textContent = data.response || "Knowledge base telah direset.";
+        loadKnowledgeBase();
+      } catch (err) {
+        kbStatus.textContent = "Gagal mereset knowledge base.";
+        console.error(err);
+      } finally {
+        resetKbBtn.disabled = false;
+      }
+    }
+
+    async function loadUploadedFiles() {
+      fileList.textContent = "Memuat daftar file...";
+      try {
+        var res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "list_files" }),
+          headers: { "Content-Type": "application/json;charset=utf-8" }
+        });
+        var data = await res.json();
+        if (Array.isArray(data.response) && data.response.length) {
+          fileList.innerHTML = data.response.map(function(file) {
+            return '<div><strong>' + file.name + '</strong> (' + Math.round(file.size / 1024) + ' KB) - ' + file.date + ' <button data-id="' + file.id + '" class="delete-file">Hapus</button></div>';
+          }).join('');
+          fileList.querySelectorAll('.delete-file').forEach(function(button) {
+            button.addEventListener('click', function() {
+              deleteFile(button.getAttribute('data-id'));
+            });
+          });
+        } else {
+          fileList.textContent = 'Belum ada file terunggah.';
+        }
+      } catch (err) {
+        fileList.textContent = "Gagal memuat daftar file.";
+        console.error(err);
+      }
+    }
+
+    async function deleteFile(fileId) {
+      if (!confirm('Hapus file ini dari Drive?')) {
+        return;
+      }
+      try {
+        var res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "delete_file", file_id: fileId }),
+          headers: { "Content-Type": "application/json;charset=utf-8" }
+        });
+        var data = await res.json();
+        fileStatus.textContent = data.response || 'File dihapus.';
+        loadUploadedFiles();
+      } catch (err) {
+        fileStatus.textContent = 'Gagal menghapus file.';
+        console.error(err);
+      }
+    }
 
     async function saveKnowledgeBase() {
       var text = kbText.value.trim();

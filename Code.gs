@@ -74,8 +74,20 @@ function doPost(e) {
       return handleGetKnowledge();
     }
 
+    if (action === "reset_knowledge") {
+      return handleResetKnowledge();
+    }
+
     if (action === "upload_file") {
       return handleUploadFile(body);
+    }
+
+    if (action === "list_files") {
+      return handleListFiles();
+    }
+
+    if (action === "delete_file") {
+      return handleDeleteFile(body);
     }
 
     var userMessage = String(body.message || "").trim();
@@ -128,6 +140,67 @@ function handleGetKnowledge() {
     response: knowledge,
     source: "admin"
   });
+}
+
+function handleResetKnowledge() {
+  saveKnowledgeBase(KNOWLEDGE_BASE.trim());
+  return jsonResponse({
+    response: "Knowledge base dikembalikan ke konten default.",
+    source: "admin"
+  });
+}
+
+function handleListFiles() {
+  var folderId = getUploadsFolderId();
+  if (!folderId) {
+    return jsonResponse({
+      response: [],
+      source: "admin"
+    });
+  }
+
+  var folder = DriveApp.getFolderById(folderId);
+  var files = folder.getFiles();
+  var list = [];
+  while (files.hasNext()) {
+    var file = files.next();
+    list.push({
+      id: file.getId(),
+      name: file.getName(),
+      size: file.getSize(),
+      date: file.getLastUpdated().toISOString()
+    });
+  }
+
+  return jsonResponse({
+    response: list,
+    source: "admin"
+  });
+}
+
+function handleDeleteFile(body) {
+  var fileId = String(body.file_id || "").trim();
+  if (!fileId) {
+    return jsonResponse({
+      response: "ID file tidak ditemukan.",
+      source: "validation"
+    });
+  }
+
+  try {
+    var file = DriveApp.getFileById(fileId);
+    file.setTrashed(true);
+    return jsonResponse({
+      response: "File berhasil dihapus.",
+      source: "admin"
+    });
+  } catch (err) {
+    Logger.log('handleDeleteFile error: ' + err.toString());
+    return jsonResponse({
+      response: "Gagal menghapus file.",
+      source: "error"
+    });
+  }
 }
 
 function doGet(e) {
@@ -233,7 +306,7 @@ function handleUploadFile(body) {
 
   var bytes = Utilities.base64Decode(fileData);
   var blob = Utilities.newBlob(bytes, contentType, filename);
-  var file = DriveApp.createFile(blob);
+  var file = saveUploadedFile(blob, filename);
   var parsedText = parseUploadedFile(file, filename);
 
   if (parsedText) {
@@ -261,11 +334,32 @@ function parseUploadedFile(file, filename) {
     if (ext === 'docx') {
       return parseDocxFile(file, filename);
     }
+    if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
+      return parseImageFile(file, filename);
+    }
     return null;
   } catch (err) {
     Logger.log('parseUploadedFile error: ' + err.toString());
     return null;
   }
+}
+
+function saveUploadedFile(blob, filename) {
+  var folder = getUploadsFolder();
+  return folder.createFile(blob);
+}
+
+function getUploadsFolder() {
+  var folderName = 'Chatbot Knowledge Uploads';
+  var folders = DriveApp.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder(folderName);
+}
+
+function getUploadsFolderId() {
+  return getUploadsFolder().getId();
 }
 
 function parsePdfFile(file, filename) {
@@ -274,7 +368,7 @@ function parsePdfFile(file, filename) {
       title: filename,
       mimeType: MimeType.GOOGLE_DOCS
     };
-    var converted = Drive.Files.insert(resource, file.getBlob(), {convert: true});
+    var converted = Drive.Files.insert(resource, file.getBlob(), {convert: true, ocr: true, ocrLanguage: 'id'});
     var doc = DocumentApp.openById(converted.id);
     var text = doc.getBody().getText();
     DriveApp.getFileById(converted.id).setTrashed(true);
@@ -324,6 +418,23 @@ function parseDocxFile(file, filename) {
     return text;
   } catch (err) {
     Logger.log('parseDocxFile error: ' + err.toString());
+    return null;
+  }
+}
+
+function parseImageFile(file, filename) {
+  try {
+    var resource = {
+      title: filename,
+      mimeType: MimeType.GOOGLE_DOCS
+    };
+    var converted = Drive.Files.insert(resource, file.getBlob(), {ocr: true, ocrLanguage: 'id'});
+    var doc = DocumentApp.openById(converted.id);
+    var text = doc.getBody().getText();
+    DriveApp.getFileById(converted.id).setTrashed(true);
+    return text;
+  } catch (err) {
+    Logger.log('parseImageFile error: ' + err.toString());
     return null;
   }
 }

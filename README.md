@@ -74,6 +74,14 @@ const GAS_URL = "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
 - Remember to add your API key in the `Code.gs` file before pushing
 - Don't commit/push your API key to public repositories
 - Monitor your API usage to avoid unexpected charges
+- Jika Anda ingin upload file seperti PDF, Excel, atau gambar, aktifkan Advanced Drive Service di Apps Script
+  - Editor GAS → Services → Tambah `Drive API`
+
+## Fiturs Terbaru (Gratis dengan GAS)
+- Knowledge base dapat diedit langsung dari UI
+- Upload file teks, PDF, Excel, Word, dan gambar untuk ditambahkan ke knowledge base
+- Daftar file upload dapat ditampilkan dan dihapus
+- Reset KB ke konten default kapan saja
 
 ## Deploy to GitHub and Vercel
 1. Push your project to GitHub (already done):
