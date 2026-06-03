@@ -64,6 +64,16 @@ Jawab langsung tanpa menyebut "berdasarkan knowledge base".
 function doPost(e) {
   try {
     var body = parseRequestBody(e);
+    var action = String(body.action || "chat").trim();
+
+    if (action === "set_knowledge") {
+      return handleSetKnowledge(body);
+    }
+
+    if (action === "get_knowledge") {
+      return handleGetKnowledge();
+    }
+
     var userMessage = String(body.message || "").trim();
 
     if (!userMessage) {
@@ -88,6 +98,32 @@ function doPost(e) {
       error: err.toString()
     });
   }
+}
+
+function handleSetKnowledge(body) {
+  var knowledge = String(body.kb_text || "").trim();
+
+  if (!knowledge) {
+    return jsonResponse({
+      response: "Knowledge base tidak boleh kosong.",
+      source: "validation"
+    });
+  }
+
+  saveKnowledgeBase(knowledge);
+
+  return jsonResponse({
+    response: "Knowledge base berhasil diperbarui.",
+    source: "admin"
+  });
+}
+
+function handleGetKnowledge() {
+  var knowledge = getKnowledgeBase();
+  return jsonResponse({
+    response: knowledge,
+    source: "admin"
+  });
 }
 
 function doGet(e) {
@@ -161,10 +197,22 @@ function buildSystemPrompt() {
   return SYSTEM_PROMPT_TEMPLATE
     .replaceAll("{BOT_NAME}", CONFIG.BOT_NAME)
     .replaceAll("{BUSINESS_NAME}", CONFIG.BUSINESS_NAME)
-    .replaceAll("{KNOWLEDGE_BASE}", KNOWLEDGE_BASE)
+    .replaceAll("{KNOWLEDGE_BASE}", getKnowledgeBase())
     .replaceAll("{PHONE}", CONFIG.PHONE)
     .replaceAll("{WHATSAPP}", CONFIG.WHATSAPP)
     .replaceAll("{EMAIL}", CONFIG.EMAIL);
+}
+
+function getKnowledgeBase() {
+  var saved = PropertiesService.getScriptProperties().getProperty("KNOWLEDGE_BASE_TEXT");
+  if (saved && String(saved).trim().length > 0) {
+    return String(saved).trim();
+  }
+  return KNOWLEDGE_BASE;
+}
+
+function saveKnowledgeBase(text) {
+  PropertiesService.getScriptProperties().setProperty("KNOWLEDGE_BASE_TEXT", String(text).trim());
 }
 
 function extractGeminiText(result) {
