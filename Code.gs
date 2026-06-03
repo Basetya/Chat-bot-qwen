@@ -74,6 +74,10 @@ function doPost(e) {
       return handleGetKnowledge();
     }
 
+    if (action === "upload_file") {
+      return handleUploadFile(body);
+    }
+
     var userMessage = String(body.message || "").trim();
 
     if (!userMessage) {
@@ -213,6 +217,59 @@ function getKnowledgeBase() {
 
 function saveKnowledgeBase(text) {
   PropertiesService.getScriptProperties().setProperty("KNOWLEDGE_BASE_TEXT", String(text).trim());
+}
+
+function handleUploadFile(body) {
+  var filename = String(body.filename || "").trim();
+  var fileData = String(body.file_data || "").trim();
+  var contentType = String(body.content_type || "application/octet-stream");
+
+  if (!filename || !fileData) {
+    return jsonResponse({
+      response: "Nama file dan data file harus diberikan.",
+      source: "validation"
+    });
+  }
+
+  var bytes = Utilities.base64Decode(fileData);
+  var blob = Utilities.newBlob(bytes, contentType, filename);
+  var file = DriveApp.createFile(blob);
+  var parsedText = parseUploadedFile(file, filename);
+
+  if (parsedText) {
+    appendKnowledgeBase("[File: " + filename + "]\n" + parsedText);
+  }
+
+  return jsonResponse({
+    response: "File '" + filename + "' berhasil diunggah." + (parsedText ? " Isi teks berhasil ditambahkan ke knowledge base." : " Tekstualisasi file belum didukung untuk jenis file ini."),
+    source: "admin"
+  });
+}
+
+function parseUploadedFile(file, filename) {
+  var ext = String(filename).split('.').pop().toLowerCase();
+  try {
+    if (ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json') {
+      return file.getBlob().getDataAsString();
+    }
+    return null;
+  } catch (err) {
+    Logger.log('parseUploadedFile error: ' + err.toString());
+    return null;
+  }
+}
+
+function appendKnowledgeBase(text) {
+  var current = getKnowledgeBase();
+  saveKnowledgeBase(truncateKnowledgeBase(current + '\n\n' + text));
+}
+
+function truncateKnowledgeBase(text) {
+  var maxLength = 25000;
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.slice(text.length - maxLength);
 }
 
 function extractGeminiText(result) {

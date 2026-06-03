@@ -67,7 +67,8 @@
       color: #212529;
     }
 
-    .kb-editor button {
+    .kb-editor button,
+    .file-uploader button {
       margin-top: 10px;
       padding: 10px 16px;
       border: 0;
@@ -78,7 +79,17 @@
       cursor: pointer;
     }
 
-    .kb-editor .status {
+    .file-uploader {
+      margin-top: 16px;
+    }
+
+    .file-uploader input[type="file"] {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .kb-editor .status,
+    .file-uploader .status {
       margin-top: 10px;
       color: var(--muted);
       font-size: 0.95rem;
@@ -185,6 +196,12 @@
       <textarea id="kbText" placeholder="Tulis atau tempel knowledge base di sini..."></textarea>
       <button id="saveKb">Simpan Knowledge Base</button>
       <div id="kbStatus" class="status"></div>
+      <div class="file-uploader">
+        <label for="fileInput"><strong>Upload file</strong> (txt / md / csv / json didukung):</label>
+        <input type="file" id="fileInput" accept=".txt,.md,.csv,.json" />
+        <button id="uploadFile">Upload & Tambahkan</button>
+        <div id="fileStatus" class="status"></div>
+      </div>
     </div>
     <div id="chatbox"></div>
     <div class="input-area">
@@ -288,6 +305,48 @@
         saveKbBtn.disabled = false;
       }
     }
+
+    async function uploadFile() {
+      var file = fileInput.files[0];
+      if (!file) {
+        fileStatus.textContent = "Pilih file terlebih dahulu.";
+        return;
+      }
+
+      uploadFileBtn.disabled = true;
+      fileStatus.textContent = "Mengunggah file...";
+
+      var reader = new FileReader();
+      reader.onload = async function (event) {
+        var base64 = event.target.result.split(",")[1];
+        try {
+          var res = await fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({
+              action: "upload_file",
+              filename: file.name,
+              content_type: file.type || "application/octet-stream",
+              file_data: base64
+            }),
+            headers: { "Content-Type": "application/json;charset=utf-8" }
+          });
+
+          var data = await res.json();
+          fileStatus.textContent = data.response || "File berhasil diunggah.";
+        } catch (err) {
+          fileStatus.textContent = "Gagal mengunggah file.";
+          console.error(err);
+        } finally {
+          uploadFileBtn.disabled = false;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    var fileInput = document.getElementById("fileInput");
+    var uploadFileBtn = document.getElementById("uploadFile");
+    var fileStatus = document.getElementById("fileStatus");
+    uploadFileBtn.addEventListener("click", uploadFile);
 
     input.focus();
   </script>
